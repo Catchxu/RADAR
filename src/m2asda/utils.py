@@ -1,5 +1,6 @@
 import warnings
 import torch
+import anndata as ad
 import random
 import numpy as np
 import pandas as pd
@@ -74,6 +75,52 @@ def evaluate(y_true, y_score):
 
     return roc_auc, ap, f1
 
+    
+class PairDatasetWithBatch(Dataset):
+    """
+    For Module III training: returns (x_r, x_t, b_onehot)
+      x_r: [G]    paired ref cell expression
+      x_t: [G]    target cell expression
+      b_onehot: [Nb] (paper B_t)
+    """
+    def __init__(self, ref_pair: ad.AnnData, tgt: ad.AnnData, batch_key: str, num_batches: int):
+        if ref_pair.n_obs != tgt.n_obs:
+            raise RuntimeError("ref_pair and tgt must have the same n_obs for 1-1 pairing.")
+
+        if batch_key not in tgt.obs:
+            raise RuntimeError(
+                f"tgt.obs missing '{batch_key}'. Build tgt with ad.concat(..., label='{batch_key}', keys=...)."
+            )
+
+        self.x_r = torch.tensor(to_dense(ref_pair.X), dtype=torch.float32)
+        self.x_t = torch.tensor(to_dense(tgt.X), dtype=torch.float32)
+
+        codes = tgt.obs[batch_key]
+        if hasattr(codes, "cat"):
+            codes = codes.cat.codes
+        self.batch_id = torch.tensor(np.asarray(codes), dtype=torch.long)
+
+        self.Nb = int(num_batches)
+
+    def __len__(self):
+        return self.x_t.size(0)
+
+    def __getitem__(self, i):
+        b = self.batch_id[i].item()
+        onehot = torch.zeros(self.Nb, dtype=torch.float32)
+        if self.Nb == 1:
+            onehot[0] = 1.0
+        else:
+            onehot[b] = 1.0
+        return self.x_r[i], self.x_t[i], onehot
+
+    
+def set_requires_grad(module: torch.nn.Module, flag: bool):
+    for p in module.parameters():
+        p.requires_grad_(flag)
+
+def to_dense(X):
+    return X.toarray() if hasattr(X, "toarray") else np.asarray(X)
 
 class PairDataset(Dataset):
     def __init__(self, DataA, DataB):

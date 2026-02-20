@@ -53,7 +53,7 @@ def read_dataset(dir, names):
     else:
         adatas = []
         for name in names:
-            adatas.append(read_single(dir, name, False))
+            adatas.append(read_single(dir, name))
         adata = ad.concat(adatas)
     return adata
 
