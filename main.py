@@ -6,6 +6,7 @@ import anndata as ad
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
+from tqdm.auto import tqdm
 
 from discriminator import Discriminator
 from generator import Generator
@@ -73,7 +74,7 @@ def _load_adata(adata_or_path: str | Path | ad.AnnData) -> ad.AnnData:
 def train_stargan(
     adata_or_path: str | Path | ad.AnnData,
     batch_key: str,
-    epochs: int = 50,
+    epochs: int = 100,
     batch_size: int = 128,
     lr_g: float = 1e-4,
     lr_d: float = 1e-4,
@@ -84,13 +85,14 @@ def train_stargan(
     g_dropout: float = 0.1,
     d_dropout: float = 0.0,
     use_change_gate: bool = False,
-    lambda_cls: float = 1.0,
-    lambda_rec: float = 10.0,
-    lambda_id: float = 1.0,
+    lambda_cls: float = 3.0,
+    lambda_rec: float = 3.0,
+    lambda_id: float = 0.2,
     lambda_change: float = 0.0,
     num_workers: int = 0,
     device: str | torch.device | None = None,
     seed: int = 42,
+    show_progress: bool = True,
 ):
     """
     Train a StarGAN-like model on preprocessed scRNA-seq data.
@@ -162,15 +164,26 @@ def train_stargan(
         lambda_id=lambda_id,
         lambda_change=lambda_change,
     )
-    g_optimizer = torch.optim.Adam(generator.parameters(), lr=lr_g, betas=(0.5, 0.999))
-    d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=lr_d, betas=(0.5, 0.999))
+    g_optimizer = torch.optim.AdamW(generator.parameters(), lr=lr_g)
+    d_optimizer = torch.optim.AdamW(discriminator.parameters(), lr=lr_d)
 
     history = []
-    for epoch in range(1, epochs + 1):
+    epoch_iterator = tqdm(
+        range(1, epochs + 1),
+        desc="Training",
+        disable=not show_progress,
+    )
+    for epoch in epoch_iterator:
         running = {}
         n_steps = 0
 
-        for x_real, c_src in loader:
+        batch_iterator = tqdm(
+            loader,
+            desc=f"Epoch {epoch}/{epochs}",
+            leave=False,
+            disable=not show_progress,
+        )
+        for x_real, c_src in batch_iterator:
             x_real = x_real.to(device, non_blocking=True)
             c_src = c_src.to(device, non_blocking=True)
 
@@ -198,14 +211,117 @@ def train_stargan(
         for k, v in running.items():
             epoch_log[k] = v / max(n_steps, 1)
         history.append(epoch_log)
+        epoch_iterator.set_postfix(
+            g_loss=f"{epoch_log.get('g_loss', 0.0):.4f}",
+            d_loss=f"{epoch_log.get('d_loss', 0.0):.4f}",
+        )
 
-    return {
-        "generator": generator,
-        "discriminator": discriminator,
-        "history": history,
-        "domain_names": domain_names,
-        "batch_key": batch_key,
-    }
+    generator.domain_names_ = domain_names
+    return generator
 
 
-__all__ = ["train_step", "train_stargan"]
+@torch.no_grad()
+def align_adata(
+    adata_or_path: str | Path | ad.AnnData,
+    generator: Generator,
+    batch_key: str,
+    target_batch: str,
+    domain_names: list[str] | None = None,
+    batch_size: int = 1024,
+    device: str | torch.device | None = None,
+    copy: bool = True,
+    overwrite_batch_key: bool = False,
+    output_layer: str | None = "X_aligned",
+) -> ad.AnnData:
+    """
+    Align all cells to one target domain using a trained StarGAN generator.
+
+    Parameters
+    ----------
+    adata_or_path
+        Preprocessed AnnData or `.h5ad` path.
+    generator
+        Trained generator returned by `train_stargan`.
+    batch_key
+        Domain column in `adata.obs`.
+    target_batch
+        Target domain name to align all cells into.
+    domain_names
+        Domain names used during training. If None, use categories from current `adata.obs[batch_key]`.
+    overwrite_batch_key
+        If True, overwrite `adata.obs[batch_key]` with `target_batch`.
+    output_layer
+        If not None, write aligned matrix to `adata.layers[output_layer]`.
+    """
+    adata = _load_adata(adata_or_path)
+    if copy:
+        adata = adata.copy()
+
+    if batch_key not in adata.obs:
+        raise KeyError(f"`{batch_key}` not found in `adata.obs`.")
+    if adata.n_obs == 0 or adata.n_vars == 0:
+        raise ValueError("Input AnnData has no cells or no genes.")
+
+    obs_domains = adata.obs[batch_key].astype("category")
+    inferred_names = [str(x) for x in obs_domains.cat.categories]
+    if domain_names is None and hasattr(generator, "domain_names_"):
+        domain_names = [str(x) for x in generator.domain_names_]
+    else:
+        domain_names = inferred_names if domain_names is None else [str(x) for x in domain_names]
+    domain_to_idx = {name: idx for idx, name in enumerate(domain_names)}
+
+    if target_batch not in domain_to_idx:
+        raise ValueError(
+            f"`target_batch={target_batch}` is not in domain_names: {domain_names}"
+        )
+
+    if hasattr(generator, "input_dim") and adata.n_vars != generator.input_dim:
+        raise ValueError(
+            f"Feature mismatch: adata.n_vars={adata.n_vars}, generator.input_dim={generator.input_dim}."
+        )
+
+    mapped = obs_domains.astype(str).map(domain_to_idx)
+    if mapped.isna().any():
+        missing = sorted(set(obs_domains.astype(str)[mapped.isna()].tolist()))
+        raise ValueError(
+            "Found domains in `adata.obs[batch_key]` not present in `domain_names`: "
+            f"{missing}"
+        )
+
+    x = adata.X.toarray() if hasattr(adata.X, "toarray") else np.asarray(adata.X)
+    x = np.asarray(x, dtype=np.float32)
+
+    if device is None:
+        device = next(generator.parameters()).device
+    else:
+        device = torch.device(device)
+        generator = generator.to(device)
+    generator.eval()
+
+    x_tensor = torch.from_numpy(x)
+    dataset = TensorDataset(x_tensor)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0, drop_last=False)
+
+    target_idx = domain_to_idx[target_batch]
+    aligned_chunks = []
+    for (x_batch,) in loader:
+        x_batch = x_batch.to(device, non_blocking=True)
+        c_tgt = torch.full((x_batch.shape[0],), target_idx, dtype=torch.long, device=device)
+        x_aligned = generator(x_batch, c_tgt)
+        aligned_chunks.append(x_aligned.detach().cpu())
+
+    x_aligned = torch.cat(aligned_chunks, dim=0).numpy()
+    adata.X = x_aligned
+
+    if output_layer is not None:
+        adata.layers[output_layer] = x_aligned.copy()
+
+    adata.obs[f"{batch_key}_original"] = adata.obs[batch_key].astype(str).values
+    if overwrite_batch_key:
+        adata.obs[batch_key] = target_batch
+    adata.obs[f"{batch_key}_aligned_target"] = target_batch
+
+    return adata
+
+
+__all__ = ["train_step", "train_stargan", "align_adata"]

@@ -11,7 +11,7 @@ def preprocess_single_cell(
     max_pct_mt: float = 20.0,
     target_sum: float = 1e4,
     n_top_genes: int = 3000,
-    hvg_flavor: str = "seurat_v3",
+    hvg_flavor: str = "seurat",
     inplace: bool = False,
     mt_gene_prefix: str = "MT-",
 ) -> ad.AnnData:
