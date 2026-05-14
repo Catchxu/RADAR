@@ -1,2 +1,0 @@
-eval_name,assay_value,macro_f1_detection,ari_on_tp_intersection,macro_f1_x_ari,n_total,n_true_asc,n_pred_asc,n_tp_for_ari,TP,FP,FN,TN,true_subtypes,subtype_csv,pred_to_true_mapping
-assay_10x_3_v3,10x 3' v3,0.8961614899290942,0.8716333954943025,0.7811242823781296,8209,4177,4686,4008,4008,678,169,3354,tumor02_MMRd|tumor02_MMRp,/data1011/yuzimu/M2ASDA/output/subtype_by_assay/subtype_10x_3'_v3.csv,1.0->tumor02_MMRd; 0.0->tumor02_MMRp
