@@ -1,66 +1,119 @@
-# Detecting and subtyping anomalous single cells with M2ASDA
+# RADAR: Reference-guided Anomalous-cell Detection, Alignment, and Resolution
 
-Detecting and identifying anomalous single cells from single-cell datasets is crucial for understanding molecular heterogeneity in diseases and promoting precision medicine. No existing method unifies multimodal and multi-sample anomaly detection and identification, involving crucial tasks like anomaly detection, alignment, and annotation. We propose an innovative Generative Adversarial Network-based framework named Multimodal and Multi-sample Anomalous Single-cell Detection and Annotation (M2ASDA), integrating solutions of these crucial tasks into a unified framework. Comprehensive tests on real datasets demonstrate M2ASDA's superior performance in anomaly detection, multi-sample alignment, and identifying common and specific cell types across multiple target datasets.
+RADAR is a generative adversarial framework for marker-free fine-grained discovery of anomalous cells (ACs) in multi-sample and multimodal single-cell omics data.
+
+RADAR is designed for **Cross-sample Fine-grained Anomalous-cell Discovery (CFAD)**, where anomalous cells are defined as cell populations or cell states that are present in affected tissues but absent from healthy reference tissues. Given a healthy reference dataset and one or more target datasets, RADAR performs three coupled tasks in a unified workflow:
+
+1. **AC detection**: identify anomalous cells in target datasets relative to a healthy reference;
+2. **Multi-sample alignment**: reduce cross-sample or cross-modal technical variation while preserving AC-associated biological heterogeneity;
+3. **AC resolution**: resolve detected ACs into biologically coherent subtypes.
 
 <br/>
-<div align=center>
-<img src="/docs/images/framework.png" width="70%">
+<div align="center">
+<img src="docs/images/framework.png" width="75%">
 </div>
 <br/>
 
+## Overview
+
+RADAR contains three collaborative phases:
+
+### Phase I: Anomalous-cell detection
+
+RADAR first trains a reconstruction-GAN on the healthy reference dataset only. Since the model learns to reconstruct normal cellular states, target cells with larger-than-expected reconstruction deviations are identified as putative anomalous cells.
+
+### Phase II: Multi-sample alignment
+
+RADAR excludes Phase-I-detected ACs from alignment training to reduce the risk of treating AC-associated biological variation as batch effects. For predicted normal target cells, RADAR uses an Integrated-Gradients-guided pairing module to identify biologically relevant "kin" reference cells. These kin-cell pairs are then used to train a transferring-GAN that maps target datasets into a common reference space.
+
+### Phase III: Anomalous-cell resolution
+
+Detected ACs are aligned into the reference space and then resolved into fine-grained AC subtypes. RADAR combines post-alignment cellular embeddings with reconstruction-deviation signals, enabling more accurate resolution of biologically distinct AC populations across samples and modalities.
 
 ## Dependencies
-- anndata>=0.10.7
-- numpy>=1.22.4
-- pandas>=1.5.1
-- scanpy>=1.10.1
-- scikit_learn>=1.2.0
-- scipy>=1.11.4
-- torch>=2.0.0
-- tqdm>=4.64.1
 
+RADAR is implemented in Python and has been tested with Python 3.9.
+
+Main dependencies include:
+
+```text
+anndata>=0.10.7
+numpy>=1.22.4
+pandas>=1.5.1
+scanpy>=1.10.1
+scikit-learn>=1.2.0
+scipy>=1.11.4
+torch>=2.0.0
+tqdm>=4.64.1
+captum
+matplotlib
+```
 
 ## Installation
-M2ASDA is developed as a Python package. You will need to install Python, and the recommended version is Python 3.9.
+
+RADAR is developed as a Python package. You will need to install Python, and the recommended version is Python 3.9.
 
 You can download the package from GitHub and install it locally:
 
-```commandline
-git clone https://github.com/Catchxu/M2ASDA.git
-cd M2ASDA/
-python3 setup.py install
+```bash
+git clone https://github.com/Catchxu/RADAR.git
+cd RADAR/
+pip install .
 ```
 
+## Quick start
 
-## Getting Started
-M2ASDA offers a variety of functions for single-cell omics data analysis, and all these functions can be implemented through both python package and terminal commands. Here, we provide the detailed tutorials as follows:
-- Detecting anomalous cells with M2ASDA package ([tutorial](https://catchxu.github.io/M2ASDA/tutorial/Anomaly/))
-- Running M2ASDA to detect anomalous cells in terminal ([tutorial](https://catchxu.github.io/M2ASDA/tutorial/Anomaly_T/))
+After installation, RADAR can be run through three consecutive phases: anomalous-cell detection, multi-sample alignment, and anomalous-cell resolution.
 
-Before starting the tutorial, we need to make some preparations, including: installing M2ASDA and its required Python packages, downloading the datasets required for the tutorial, and so on. The preparations is available at [M2ASDA Preparations](https://catchxu.github.io/M2ASDA/start/). Additionally, we strongly recommend using a GPU and pretraining M2ASDA on the public single-cell datasets. More useful and helpful information can be found at the [online documentation](https://Catchxu.github.io/M2ASDA/).
+### Phase I: anomalous-cell detection
 
+Train the reference-guided reconstruction model on the healthy reference dataset and predict anomalous cells in the target dataset:
 
-## Datasets
-All experimental datasets involved in this paper are available from their respective original sources. The 10x scRNA-seq datasets of healthy human lung tissues (10xG-hHL) and human lung cancer tissues (10xG-hLC-A and -B) are available at [GSE196303](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE196303). The 10x scRNA-seq dataset of mouse embryo (10xG-mEmb) is available at [GSE186069](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE186069). The 10x scRNA-seq datasets of healthy human peripheral blood mononuclear cells (10xG-hHPBMC), and 10x scATAC-seq datasets of healthy and basal cell carcinoma human peripheral blood mononuclear cells (10xC-hHPBMC, and 10xC-hPBMCBCC) are available at [10x Genomics](https://www.10xgenomics.com/datasets). The 10x scRNA-seq datasets of human systemic lupus erythematosus peripheral blood mononuclear cells (10xG-hPBMCSLE-A, -B, and -C) are available at [GSE96583](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE96583). The Slide-seqV2 datasets of mouse embryo (ssq-mEmb-33) are available at [GSE197353](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE197353).
+```bash
+bash scripts/01_phase1.sh
+```
 
+This step generates anomalous-cell prediction results, including cell-level anomaly labels and reconstruction-deviation scores.
 
-## Tested environment
-### Environment 1
-- CPU: Intel(R) Xeon(R) Platinum 8255C CPU @ 2.50GHz
-- Memory: 256 GB
-- System: Ubuntu 20.04.5 LTS
-- Python: 3.9.15
+### Phase II: multi-sample alignment
 
-### Environment 2
-- CPU: Intel(R) Xeon(R) Gold 6240R CPU @ 2.40GHz
-- Memory: 256 GB
-- System: Ubuntu 22.04.3 LTS
-- Python: 3.9.18
+Use predicted normal target cells to perform reference-guided multi-sample alignment:
 
+```bash
+bash scripts/02_phase2.sh
+```
 
-## Getting help
-For any questions or comments, please use the [GitHub issues](https://github.com/Catchxu/M2ASDA/issues) or directly contact Kaichen Xu at the email: kaichenxu358@gmail.com.
+This step identifies kin reference cells for predicted normal target cells and maps target datasets into the reference-aligned space.
 
+### Phase III: anomalous-cell resolution
 
-## Citation
-Coming soon.
+Resolve detected anomalous cells into fine-grained AC subtypes:
+
+```bash
+bash scripts/03_phase3.sh
+```
+
+This step generates AC subtype labels and downstream results for anomalous-cell resolution.
+
+## Data availability
+
+All experimental datasets used in this project are available from their respective original sources. Due to file size and data-usage considerations, raw datasets are not included in this repository.
+
+### 10x scRNA-seq datasets
+
+- Healthy human intestinal epithelial tissue dataset (**10xG-hInt-N**) is available at GEO: [GSE185224](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE185224).
+- Human colorectal cancer tissue datasets (**10xG-hCRC-T-A** and **10xG-hCRC-T-B**) are available at GEO: [GSE178341](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE178341).
+- Mouse embryo dataset (**10xG-mEmb**) is available at GEO: [GSE186069](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE186069).
+- Healthy human peripheral blood mononuclear cell dataset (**10xG-hHPBMC**), used as a cross-modality reference for AC detection, is available from [10x Genomics](https://www.10xgenomics.com/datasets).
+- PBMC datasets for trajectory inference (**10xG-hPBMC-A**, **10xG-hPBMC-B**, and **10xG-hPBMC-C**) are available at GEO: [GSE146974](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE146974).
+- Systemic lupus erythematosus PBMC datasets for AC alignment (**10xG-hPBMCSLE-A**, **10xG-hPBMCSLE-B**, and **10xG-hPBMCSLE-C**) are available at GEO: [GSE96583](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE96583).
+- Human skin tissue datasets (**10xG-hSCC-N1** to **10xG-hSCC-N5** and **10xG-hSCC-P1** to **10xG-hSCC-P5**) are available at GEO: [GSE144240](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE144240).
+
+### 10x scATAC-seq datasets
+
+- Healthy and basal cell carcinoma human peripheral blood mononuclear cell scATAC-seq datasets (**10xC-hHPBMC** and **10xC-hPBMCBCC**) are available from [10x Genomics](https://www.10xgenomics.com/datasets).
+- Mouse brain scATAC-seq datasets (**10xC-mBrain-0**, **10xC-mBrain-1**, and **10xC-mBrain-2**) are available from their original sources.
+
+### Spatial transcriptomics datasets
+
+- Slide-seqV2 mouse embryo dataset (**ssq-mEmb-33**) is available at GEO: [GSE197353](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE197353).

@@ -5,14 +5,14 @@ with open('README.md', 'r', encoding='utf-8') as f:
     LONG_DESCRIPTION = f.read()
 
 setup(
-    name='m2asda',
+    name='radar',
     version='1.0.0',
-    description='Detecting and subtyping anomalous single cells with M2ASDA',
+    description='Reference-guided Anomalous-cell Detection, Alignment, and Resolution',
     long_description=LONG_DESCRIPTION,
     long_description_content_type='text/markdown',
     author='Kaichen Xu',
     author_email='Kaichenxu@stu.zuel.edu.cn',
-    url='https://github.com/Catchxu/M2ASDA',
+    url='https://github.com/Catchxu/RADAR',
     license='GPL v3',
     classifiers=[
         "Programming Language :: Python :: 3",
