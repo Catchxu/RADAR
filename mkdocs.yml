@@ -1,9 +1,9 @@
-site_name: M2ASDA
-site_url: https://Catchxu.github.io/M2ASDA/
+site_name: RADAR
+site_url: https://Catchxu.github.io/RADAR/
 site_author: Kaichen Xu
 copyright: Copyright &copy; 2024 Kaichen Xu
-repo_name: Catchxu/M2ASDA
-repo_url: https://github.com/Catchxu/M2ASDA
+repo_name: Catchxu/RADAR
+repo_url: https://github.com/Catchxu/RADAR
 
 nav:
   - Home: 
@@ -14,6 +14,7 @@ nav:
     - Overview: tutorial/overview.md
     - Anomaly: tutorial/Anomaly.ipynb
     - Anomaly_T: tutorial/Anomaly_T.ipynb
+    - RADAR workflow: tutorial/RADAR_workflow.ipynb
 
 theme:
     name: "material"

@@ -3,8 +3,8 @@ from .utils import select_device
 
 class AnomalyConfigs:
     def __init__(self):
-        self.n_epochs = 200
-        self.batch_size = 256
+        self.n_epochs = 300
+        self.batch_size = 512
         self.learning_rate = 1e-4
         self.n_critic = 1
         self.gamma = 0.1
@@ -100,7 +100,7 @@ class SubtypeConfigs:
     def __init__(self):
         self.batch_size = 64
         self.learning_rate = 1e-4
-        self.weight_decay = 1e-4
+        self.weight_decay = 0.0
         self.GPU = "cuda:0"
         self.random_state = 746
         self.n_genes = 3000

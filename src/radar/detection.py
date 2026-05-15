@@ -271,7 +271,7 @@ class AnomalyModel:
             score.append(s.cpu())
 
         score = torch.cat(score, dim=0).numpy()
-        anomaly_score = 1-score 
+        anomaly_score = score 
         return anomaly_score.reshape(-1)
 
 
